@@ -188,6 +188,8 @@ endif
 
 map <C-A> ggVG
 
+command! -nargs=0 -range=% SnakeToCamel :<line1>,<line2>s/_\(.\)/\u\1/g
+
 " m_vimutilから移動 {{{
 command! Date :r!date +"%Y/%m/%d"
 
@@ -275,6 +277,8 @@ function! AltCSource()
         let target = substitute(cfile, '\.cpp$', '.h', '') 
     elseif cfile =~ '\.h$'
         let target = substitute(cfile, '\.h$', '.cpp', '') 
+    elseif cfile =~ '\.c$'
+        let target = substitute(cfile, '\.c$', '.h', '') 
     else 
         return 
     endif
@@ -301,6 +305,41 @@ function! GenCHeader(...)
   call append("$", lines)
 
   execute '0/^$/d'
+endfunction
+
+command! -nargs=+ CppEnumCls :call GenCppEnumCls(<f-args>)
+function! GenCppEnumCls(...)
+  if a:0 < 1 | return | endif
+
+  let lines = []
+  let enum_name = a:1
+  call add(lines, "enum class " . enum_name . " : uint8_t {")
+  let is_first = 1
+  for elem_name in a:000[1:]
+    if is_first
+      call add(lines, "  " . elem_name . " = 0,")
+      let is_first = 0
+    else
+      call add(lines, "  " . elem_name . ",")
+    endif
+  endfor
+  call add(lines, "};")
+
+  call add(lines, "constexpr uint8_t to_idx(" . enum_name . " e) {")
+  call add(lines, "  switch (e) {")
+  for idx in range(a:0 - 1)
+    let elem_name = a:000[idx+1]
+    call add(lines, "    case " . enum_name . "::" . elem_name . ":")
+    call add(lines, "      return " . idx . ";")
+    call add(lines, "      break;")
+  endfor
+  call add(lines, "    default:")
+  call add(lines, "      break;")
+  call add(lines, "  }")
+  call add(lines, "  return 0;")
+  call add(lines, "}")
+
+  call append(".", lines)
 endfunction
 
 command! StoreCwd :let tmp_cwd = getcwd()
@@ -414,6 +453,8 @@ command! -nargs=0 -range BoostArr :<line1>,<line2>s/\(\w\+\)\[\(\d\+\)\]/boost::
 
 command! -nargs=0 -range AlignMember :<line1>,<line2>Align \w\+;
 
+" ex:
+":  '<,'>MFHeaderToCPP HogeClass
 command! -nargs=+ -range MFHeaderToCpp :call MFAddClassScope(<f-args>, <line1>, <line2>)
 function! MFAddClassScope(arg, ...)
     let lineS = line('.')
